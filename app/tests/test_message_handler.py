@@ -133,13 +133,16 @@ def test_metadata_arrival_republishes_garage_discovery_as_toggle():
     handler = make_handler()
     asyncio.run(handler.parse_response(json.dumps(payload)))
 
-    handler.mqtt_client.mqtt_client.publish.assert_called_once()
-    topic, config_json = handler.mqtt_client.mqtt_client.publish.call_args[0]
-    assert topic == f"homeassistant/cover/tydom/{unique_id}/config"
+    calls = handler.mqtt_client.mqtt_client.publish.call_args_list
+    assert len(calls) == 2
+    # The old ON/OFF/STOP Cover entity (published before metadata confirmed
+    # this device is toggle-only) is cleared out...
+    assert calls[0][0][:2] == (f"homeassistant/cover/tydom/{unique_id}/config", "")
+    # ...and replaced by a single-action button entity.
+    topic, config_json = calls[1][0]
+    assert topic == f"homeassistant/button/tydom/{unique_id}/config"
     config = json.loads(config_json)
-    assert config["payload_open"] == "TOGGLE"
-    assert config["payload_close"] == "TOGGLE"
-    assert config["payload_stop"] == "TOGGLE"
+    assert config["payload_press"] == "TOGGLE"
 
 
 def test_metadata_with_real_enum_does_not_trigger_republish():

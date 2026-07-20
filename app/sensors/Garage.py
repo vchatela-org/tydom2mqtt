@@ -12,12 +12,21 @@ cover_level_topic = "cover/tydom/{id}/current_level"
 cover_set_level_topic = "cover/tydom/{id}/set_garageLevel"
 cover_attributes_topic = "cover/tydom/{id}/attributes"
 
+# Toggle-only relays have no open/close/stop distinction and no position
+# feedback, so they are exposed as a single-action button (mirrors
+# AutomaticDoor) instead of a Cover with three buttons that all send the
+# same pulse.
+button_config_topic = "homeassistant/button/tydom/{id}/config"
+button_command_topic = "button/tydom/{id}/set_garageLevelCmd"
+button_state_topic = "button/tydom/{id}/state"
+
 
 class Garage:
     def __init__(self, tydom_attributes, set_level=None, mqtt=None):
         self.device = None
         self.config = None
         self.config_topic = None
+        self.is_button = False
         self.attributes = tydom_attributes
         self.device_id = self.attributes["device_id"]
         self.endpoint_id = self.attributes["endpoint_id"]
@@ -58,29 +67,55 @@ class Garage:
             "name": self.name,
             "identifiers": self.id,
         }
-        self.config_topic = cover_config_topic.format(id=self.id)
+        self.is_button = self.is_toggle_only()
 
-        if self.is_toggle_only():
-            payload_open, payload_close, payload_stop = "TOGGLE", "TOGGLE", "TOGGLE"
+        if self.is_button:
+            self.config_topic = button_config_topic.format(id=self.id)
+            self.config = {
+                "name": None,  # set an MQTT entity's name to None to mark it as the main feature of a device
+                "unique_id": self.id,
+                "device": self.device,
+                "command_topic": button_command_topic.format(id=self.id),
+                "button_state_topic": button_state_topic.format(id=self.id),
+                "payload_press": "TOGGLE",
+                "icon": "mdi:gate"
+                if self.attributes["cover_class"] == "gate"
+                else "mdi:garage",
+            }
+
+            if self.mqtt is not None:
+                # Clear a stale Cover entity, in case this device was first
+                # set up as ON/OFF/STOP before its capability metadata
+                # (install-sync) confirmed it's toggle-only.
+                self.mqtt.mqtt_client.publish(
+                    cover_config_topic.format(id=self.id), "", qos=0, retain=True
+                )
         else:
-            payload_open, payload_close, payload_stop = "ON", "OFF", "STOP"
+            self.config_topic = cover_config_topic.format(id=self.id)
+            self.config = {
+                "name": None,  # set an MQTT entity's name to None to mark it as the main feature of a device
+                "unique_id": self.id,
+                "command_topic": cover_command_topic.format(id=self.id),
+                "position_topic": cover_position_topic.format(id=self.id),
+                "level_topic": cover_level_topic.format(id=self.id),
+                "set_position_topic": cover_set_level_topic.format(id=self.id),
+                "payload_open": "ON",
+                "payload_close": "OFF",
+                "payload_stop": "STOP",
+                "retain": "false",
+                "device": self.device,
+                "device_class": self.attributes["cover_class"],
+            }
+            self.config["json_attributes_topic"] = cover_attributes_topic.format(
+                id=self.id
+            )
 
-        self.config = {
-            "name": None,  # set an MQTT entity's name to None to mark it as the main feature of a device
-            "unique_id": self.id,
-            "command_topic": cover_command_topic.format(id=self.id),
-            "position_topic": cover_position_topic.format(id=self.id),
-            "level_topic": cover_level_topic.format(id=self.id),
-            "set_position_topic": cover_set_level_topic.format(id=self.id),
-            "payload_open": payload_open,
-            "payload_close": payload_close,
-            "payload_stop": payload_stop,
-            "retain": "false",
-            "device": self.device,
-            "device_class": self.attributes["cover_class"],
-        }
-
-        self.config["json_attributes_topic"] = cover_attributes_topic.format(id=self.id)
+            if self.mqtt is not None:
+                # Clear a stale button entity, in case capability metadata
+                # changed since this device was last set up as toggle-only.
+                self.mqtt.mqtt_client.publish(
+                    button_config_topic.format(id=self.id), "", qos=0, retain=True
+                )
 
         if self.mqtt is not None:
             self.mqtt.mqtt_client.publish(
@@ -96,9 +131,23 @@ class Garage:
             logger.error("GarageDoor Horizontal sensors Error :")
             logger.error(e)
 
-        self.level_topic = cover_state_topic.format(
-            id=self.id, current_level=self.current_level
-        )
+        if self.is_button:
+            if self.mqtt is not None:
+                self.mqtt.mqtt_client.publish(
+                    self.config["button_state_topic"],
+                    self.attributes,
+                    qos=0,
+                    retain=True,
+                )
+
+            logger.info(
+                "GarageDoor Horizontal (toggle button) created / updated : %s %s",
+                self.name,
+                self.id,
+            )
+            return
+
+        self.level_topic = cover_state_topic.format(id=self.id)
 
         if self.mqtt is not None:
             # and 'position' in self.attributes:

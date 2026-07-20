@@ -779,13 +779,13 @@ class MessageHandler:
                             attr_alarm["alarm_name"] = "Tyxal Alarm"
                             attr_alarm["name"] = "Tyxal Alarm"
                             attr_alarm["device_type"] = "alarm_control_panel"
-                            
+
                             # Add unit information for temperature sensors in alarm devices
                             if element_name == "outTemperature":
                                 attr_alarm["unit_of_measurement"] = "°C"
                                 attr_alarm["device_class"] = "temperature"
                                 attr_alarm["state_class"] = "measurement"
-                            
+
                             attr_alarm[element_name] = element_value
 
                     if (

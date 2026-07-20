@@ -50,7 +50,6 @@ class Sensor:
             or self.unit_of_measurement is not None
         )
 
-
         if not has_unit and (
             self.elem_value in ["0", "1", "true", "false", "True", "False", "ON", "OFF"]
             or isinstance(self.elem_value, bool)

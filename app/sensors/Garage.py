@@ -23,11 +23,8 @@ class Garage:
         self.endpoint_id = self.attributes["endpoint_id"]
         self.id = self.attributes["id"]
         self.name = self.attributes["cover_name"]
-        try:
-            self.current_level = self.attributes["level"]
-        except Exception as e:
-            logger.error(e)
-            self.current_level = None
+        # Toggle-only relays never report "level" (no position feedback).
+        self.current_level = self.attributes.get("level")
 
         self.set_level = set_level
         self.current_position = set_level

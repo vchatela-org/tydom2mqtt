@@ -406,6 +406,8 @@ class MessageHandler:
                 msg_type = "msg_html"
             elif "productName" in first:
                 msg_type = "msg_info"
+            elif "mode" in first and "support" in data:
+                msg_type = "msg_area_authorization"
 
             if msg_type is None:
                 logger.warning("Unknown message type received (%s)", data)
@@ -433,6 +435,14 @@ class MessageHandler:
 
                     elif msg_type == "msg_info":
                         pass
+
+                    elif msg_type == "msg_area_authorization":
+                        parsed = json.loads(data)
+                        logger.debug(
+                            "Zone authorization notification: mode=%s support=%s",
+                            parsed.get("mode"),
+                            parsed.get("support"),
+                        )
                 except Exception as e:
                     logger.error("Error on parsing tydom response (%s)", e)
                     logger.error("Incoming data (%s)", data)
@@ -717,7 +727,9 @@ class MessageHandler:
                                 # Convert common numeric strings (e.g., "123 W", "12,3") to number
                                 if isinstance(normalized_value, str):
                                     sanitized = normalized_value.replace(",", ".")
-                                    match = re.search(r"[-+]?[0-9]*\.?[0-9]+", sanitized)
+                                    match = re.search(
+                                        r"[-+]?[0-9]*\.?[0-9]+", sanitized
+                                    )
                                     if match:
                                         val_str = match.group(0)
                                         normalized_value = (

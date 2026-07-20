@@ -1,5 +1,6 @@
 import json
 import logging
+
 from .Sensor import Sensor
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,23 @@ class Garage:
 
         self.mqtt = mqtt
 
+    def is_toggle_only(self):
+        # Some relays (e.g. Tyxia 4620, x3d_rm) only expose a single
+        # "TOGGLE" levelCmd, with no OPEN/CLOSE/STOP and no position
+        # feedback; the connected gate/garage motor decides what a pulse
+        # means. Real positional garage motors advertise a genuine
+        # multi-value enum and must keep the ON/OFF/STOP mapping.
+        # Metadata may not have arrived yet (install-sync race) -- default
+        # to False (ON/OFF/STOP) in that case.
+        # Imported lazily (tydom.MessageHandler imports this module at its
+        # own top level, so a module-level import here would deadlock
+        # whichever module loads first).
+        import tydom.MessageHandler as message_handler
+
+        unique_id = str(self.endpoint_id) + "_" + str(self.device_id)
+        capabilities = message_handler.device_metadata.get(unique_id, {})
+        return capabilities.get("levelCmd") == ["TOGGLE"]
+
     async def setup(self):
         self.device = {
             "manufacturer": "Delta Dore",
@@ -44,6 +62,12 @@ class Garage:
             "identifiers": self.id,
         }
         self.config_topic = cover_config_topic.format(id=self.id)
+
+        if self.is_toggle_only():
+            payload_open, payload_close, payload_stop = "TOGGLE", "TOGGLE", "TOGGLE"
+        else:
+            payload_open, payload_close, payload_stop = "ON", "OFF", "STOP"
+
         self.config = {
             "name": None,  # set an MQTT entity's name to None to mark it as the main feature of a device
             "unique_id": self.id,
@@ -51,9 +75,9 @@ class Garage:
             "position_topic": cover_position_topic.format(id=self.id),
             "level_topic": cover_level_topic.format(id=self.id),
             "set_position_topic": cover_set_level_topic.format(id=self.id),
-            "payload_open": "ON",
-            "payload_close": "OFF",
-            "payload_stop": "STOP",
+            "payload_open": payload_open,
+            "payload_close": payload_close,
+            "payload_stop": payload_stop,
             "retain": "false",
             "device": self.device,
             "device_class": self.attributes["cover_class"],

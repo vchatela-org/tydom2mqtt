@@ -1,5 +1,5 @@
 # Unit tests
 pytest>6.2
 
-# Code formatter
-ruff
+# Code formatter & linter (keep in sync with .github/workflows/ci.yaml)
+ruff==0.15.22

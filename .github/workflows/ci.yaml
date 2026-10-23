@@ -28,12 +28,18 @@ jobs:
         uses: astral-sh/ruff-action@v4.1.0
         with:
           src: "./app"
+          # Pinned so CI is reproducible. Ruff 0.16.0 widened the default
+          # rule set; upgrading is a deliberate migration, not a side effect
+          # of an unpinned "latest" install. Keep in sync with
+          # app/requirements.dev.txt.
+          version: "0.15.22"
           args: "format --check"
 
       - name: ✨ Ruff lint
         uses: astral-sh/ruff-action@v4.1.0
         with:
           src: "./app"
+          version: "0.15.22"
           args: "check"
 
   test:
